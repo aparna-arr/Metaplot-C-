@@ -20,6 +20,10 @@ UserOpts::UserOpts(int argc, char *argv[])
 	splitBedDir = "";
 	wigsSplit = false;
 	bedsSplit = false;
+	isMonteCarlo = false;
+	monteCarloReps = 0;
+	bedsFromDir = false;
+	bedDir = "";
 
 	cout << "Handling opts" << endl;
 	string args = handleOpts(argc, argv);
@@ -41,9 +45,19 @@ UserOpts::UserOpts(int argc, char *argv[])
 
 	string bedOrName;
 
-	while((input >> bedOrName))
+	// if bedsFromDir, names are filenames
+
+	if (!bedsFromDir)
 	{
-		tmpBedsAndNames.push_back(bedOrName);
+		while((input >> bedOrName))
+		{
+			tmpBedsAndNames.push_back(bedOrName);
+		}
+	}
+	else
+	{
+		// get all filesnames in bedsDir
+		readBedsFromDir(tmpBedsAndNames, bedDir);
 	}
 
 	if ( tmpBedsAndNames.size() % 2 != 0 )
@@ -180,7 +194,7 @@ string UserOpts::handleOpts(int argc, char * argv[])
 	// --preprocessWig 
 	// --readSplitWig <DIR>
 	// --readSplitBed <DIR>
-
+	// --readAllBedsInDir <DIR> // instead of providing list of bedfiles
 	string allArgs = "";
 
 	for (int i = 0; i < argc ; i++)
@@ -202,7 +216,7 @@ string UserOpts::handleOpts(int argc, char * argv[])
 	{
 		string opt = sub.substr(pos+2, sub.length());
 	
-		if (opt == "step" || opt == "window" || opt == "preprocessBed")
+		if (opt == "step" || opt == "window" || opt == "preprocessBed" || opt == "monteCarlo")
 		{
 			int num;
 			if (!(args >> num))
@@ -219,6 +233,10 @@ string UserOpts::handleOpts(int argc, char * argv[])
 			{
 				window = num;
 			}
+			else if (opt == "monteCarlo")
+			{
+				monteCarloReps = num;
+			}
 			else 
 			{
 				mode = num;
@@ -226,7 +244,7 @@ string UserOpts::handleOpts(int argc, char * argv[])
 			}
 			
 		}
-		else if (opt == "readSplitWig" || opt == "readSplitBed")
+		else if (opt == "readSplitWig" || opt == "readSplitBed" || opt == "readAllBedsInDir")
 		{
 			string dir;
 			if (!(args >> dir))
@@ -244,6 +262,11 @@ string UserOpts::handleOpts(int argc, char * argv[])
 			{
 				splitWigDir = dir;
 				wigsSplit = true;
+			}
+			else if (opt == "readAllBedsInDir")
+			{
+				bedDir = dir;
+				bedsFromDir = true;
 			}
 		}
 		else if (opt == "preprocessWig")
@@ -339,10 +362,8 @@ void UserOpts::calcSlidingWindow(vector<Peak> * wigBlocks)
 	cout << "\tCalculating sliding window for chr " << (wigBlocks->begin())->chr << endl;
 	ofstream tmpfile;
 	tmpfile.open("tmp.wig", ios::app);
-
-// FIXME testing with span = 1, was originally <window>	
-//	tmpfile << "variableStep chrom=" << (wigBlocks->begin())->chr << " span=" << window << endl;
-	tmpfile << "variableStep chrom=" << (wigBlocks->begin())->chr << " span=1" << endl;
+// span = window much better with same trends than span=1
+	tmpfile << "variableStep chrom=" << (wigBlocks->begin())->chr << " span=" << window << endl;
 
 	for (vector<Peak>::iterator iter = wigBlocks->begin(); iter < wigBlocks->end(); iter++)
 	{
@@ -420,6 +441,7 @@ void UserOpts::printUsage(void)
 	cout << "\t--preprocessWig : preprocess wig." << endl;
 	cout << "\t--readSplitWig <DIR>" << endl;
 	cout << "\t--readSplitBed <DIR>" << endl;
+	cout << "\t--monteCarlo <INT> : run a signal simulation. All regions to be used MUST be input as beds! FIXME: add ability to read all files from a dir rather than input each bed on cli" << endl;
 }
 
 int UserOpts::getMaxWindow(void)
@@ -440,6 +462,30 @@ bool UserOpts::validateWig(void)
 bool UserOpts::validateNames(void)
 {
 	return true;
+}
+
+bool UserOpts::monteCarlo(void)
+{
+	if (isMonteCarlo)
+		return true;;
+	
+	return false;
+}
+
+void UserOpts::readBedsFromDir(vector<string> & tmpNamesAndBeds, string dir)
+{
+	stack<string> files = getFilesInDir(dir);
+
+	vector<string> names;
+
+	while(!files.empty())
+	{
+		tmpNamesAndBeds.push_back(files.top());
+		names.push_back(files.top());
+		files.pop();			
+	}
+
+	tmpNamesAndBeds.insert(tmpNamesAndBeds.end(), names.begin(), names.end());
 }
 
 vector<Bed *> * UserOpts::splitBedFiles(void)
@@ -772,11 +818,17 @@ vector<string> UserOpts::commonChroms(void)
 }
 
 string UserOpts::getNameString(void)
-{	
+{
+//	cerr << "NAMESTR called" << endl;	
 	string namestr = "";
+
+//	if (names.empty())
+//		cerr << "names is empty!" << endl;
+
 	while(!names.empty())
 	{
 		namestr = names.top() + "\t" + namestr;
+//		cerr << "adding " << names.top() << " to namesR" << endl;
 		namesR.push(names.top());
 		names.pop();
 	}
@@ -786,13 +838,25 @@ string UserOpts::getNameString(void)
 
 string UserOpts::getNameStringR(void)
 {
+//	cerr << "beginning of getNameStringR" << endl;
+
+//	if (namesR.empty())
+//		cerr << "namesR is empty" << endl;
+
 	string namestr = "'" + namesR.top() + "'";
+
+//	cerr << "\tbefore pop()" << endl;
+
 	namesR.pop();
+	
+//	cerr << "\tbefore while" << endl;
+	
 	while(!namesR.empty())
 	{
 		namestr = "'" + namesR.top() + "', " + namestr;
 		namesR.pop();
 	}
+//	cerr << "end of getNameStringR" << endl;
 
 	return namestr;
 	
@@ -1001,8 +1065,10 @@ void MetaplotRegion::addSignal(int offset, int len, double value, char strand)
 	{
 		for (int i = offset; i < len + offset; i++)
 		{
+		//	cerr << "DEBUG adding " << value << " to " << i << endl;
 			basePairs[i][0] += value;
 			basePairs[i][1]++;
+		//	cerr << "basePairs " << i << " height is now " << basePairs[i][1] << " signal is " << basePairs[i][0] <<  endl;
 		}		
 	}
 	else 
@@ -1017,8 +1083,9 @@ void MetaplotRegion::addSignal(int offset, int len, double value, char strand)
 
 /* End MetaplotRegion functions */
 
-void calculateMetaplot(UserOpts input, vector<Bed *> * bedByChrs, vector<Wig *> wigByChrs, vector<string> commonChrs, MetaplotRegion * region)
+void calculateMetaplot(UserOpts &input, vector<Bed *> * &bedByChrs, vector<Wig *> &wigByChrs, vector<string> commonChrs, MetaplotRegion * &region)
 {
+//	cerr << "DEBUG in calculateMetaplot" << endl;
 	for (vector<string>::iterator iter = commonChrs.begin(); iter != commonChrs.end(); iter++)
 	{
 		cout << endl << "On chromosome " << *iter << endl;
@@ -1036,13 +1103,11 @@ void calculateMetaplot(UserOpts input, vector<Bed *> * bedByChrs, vector<Wig *> 
 		(*wigIter)->readPeaks();
 
 		cout << "\tdone." << endl;
-
 		for (int bedFileNum = 0; bedFileNum < input.getBedNumber(); bedFileNum++)
 		{
 			cout << "\tOn bedfile " << bedFileNum << endl;
 
 			cout << "\t\tReading in bedfile ... " << endl;
-
 			vector<Bed *>::iterator bedIter;
 			for (bedIter = bedByChrs[bedFileNum].begin(); bedIter !=bedByChrs[bedFileNum].end(); bedIter++)
 			{
@@ -1053,9 +1118,11 @@ void calculateMetaplot(UserOpts input, vector<Bed *> * bedByChrs, vector<Wig *> 
 			(*bedIter)->readPeaks();
 
 			cout << "\t\t\tdone." << endl;
+
 			Peak * currBedPeak = (*bedIter)->getCurrPeak();
 			Peak * currWigPeak = (*wigIter)->getCurrPeak();
-
+			
+//			cerr << "DEBUG: segfault?" << endl;
 			/* now begin actual processing */
 			// assumes all peaks are in ASCENDING order (check the stacks!)
 			// okay first hurdle: we need to go through the wig multiple times, but each bed only once. But they're all stacks.
@@ -1074,7 +1141,6 @@ void calculateMetaplot(UserOpts input, vector<Bed *> * bedByChrs, vector<Wig *> 
 					(*wigIter)->unstack();
 					currWigPeak = (*wigIter)->getCurrPeak();
 				}
-
 				// assumes wig peaks are smaller than bed peaks
 				while(currWigPeak != NULL && currWigPeak->start < currBedPeak->end)
 				{
@@ -1100,6 +1166,8 @@ void calculateMetaplot(UserOpts input, vector<Bed *> * bedByChrs, vector<Wig *> 
 							len = currWigPeak->end - currBedPeak->start;
 					}
 					region[bedFileNum].addSignal(offset, len, currWigPeak->value, currBedPeak->strand);
+//					cerr << "DEBUG region[" << bedFileNum << "] has signal " << region[bedFileNum].basePairs[0][0] << " and count " << region[bedFileNum].basePairs[0][1] << endl;
+
 					(*wigIter)->unstack();
 					currWigPeak=(*wigIter)->getCurrPeak();
 				}
@@ -1113,24 +1181,79 @@ void calculateMetaplot(UserOpts input, vector<Bed *> * bedByChrs, vector<Wig *> 
 		}
 		(*wigIter)->clearPeaks();		
 	}
+//	cerr << "DEBUG end of calculateMetaplot"<<endl;
+//	cerr << "DEBUG region[0][1] is " << region[0].basePairs[0][1] << endl;
+}
 
+
+void monteCarloMetaplot(string file, int bedNum)
+{
+ // avg horizontally
+ // no need for int reps 	
+	ifstream infile(file.c_str());
+	ofstream outfile("metaplot_outfile.tmp");	
+
+	outfile << "bp\tsimulation" << endl;
+
+	string line;
+	while (getline(infile, line))
+	{
+		double num;
+		stringstream linestream(line);
+		
+		if (!(linestream >> num))
+			continue; // like next?
+		
+		// num == bp# right now
+		int bp = num;
+		double avg = 0;
+
+		for (int i = 0; i < bedNum; i++)
+		{
+			linestream >> num;
+			avg += num;
+		} 
+
+		avg /= bedNum;
+		
+		outfile << bp << "\t" << avg << endl;
+	}
+	
+	outfile.close();
+	infile.close();
+	rename("metaplot_outfile.tmp", "metaplot_outfile.txt");
+}
+
+
+void debug(MetaplotRegion * &region, int bedNumber, string nameStr, string nameStrR)
+{
+	cerr << "In DEBUG function" << endl;
+}
+
+// returns outfile name
+string printResults(MetaplotRegion * &region, int bedNumber, string nameStr, string nameStrR, int maxWindow)
+{
+//	debug();
+	cerr << "in printResults" << endl;
 	cout << endl << "Printing out results" << endl;
 
-	ofstream fstream("metaplot_outfile.txt"); 
+	string outfileName = "metaplot_outfile.txt";
 
-	string header = "bp\t" + input.getNameString() + "\n";
+	ofstream fstream(outfileName.c_str()); 
+
+	string header = "bp\t" + nameStr + "\n";
 	fstream << header;
 
-	int h = 0 - (input.getMaxWindow() / 2);
+	int h = 0 - (maxWindow / 2);
 
-	for (int i = 0; i < input.getMaxWindow(); i++)
+	for (int i = 0; i < maxWindow; i++)
 	{
 		int addition = h + i;
 		stringstream hToString;
 		hToString << addition;
 		fstream << hToString.str() << "\t";
 
-		for (int j = 0; j < input.getBedNumber(); j++)
+		for (int j = 0; j < bedNumber; j++)
 		{
 			if (region[j].basePairs[i][1] <= 0)
 				fstream << "NA\t";
@@ -1151,7 +1274,7 @@ void calculateMetaplot(UserOpts input, vector<Bed *> * bedByChrs, vector<Wig *> 
 	rstream << "library(ggplot2)\nlibrary(reshape2)\n";
 	rstream << "pdf(file=\"metaplot_outfile.pdf\", width=12, height=8)\n";
 	rstream << "plot<-read.table(\"metaplot_outfile.txt\", header=T)\n";
-	rstream << "plot.melt<-melt(plot[,c('bp', " << input.getNameStringR() << ")], id.vars=1)\n";
+	rstream << "plot.melt<-melt(plot[,c('bp', " << nameStrR << ")], id.vars=1)\n";
 	rstream << "ggplot(plot.melt, aes(x=bp, y=value, colour=variable, group=variable)) +\n";
 	rstream << "geom_line() +\n";
 	rstream << "geom_smooth() +\n";
@@ -1162,5 +1285,5 @@ void calculateMetaplot(UserOpts input, vector<Bed *> * bedByChrs, vector<Wig *> 
 
 	rstream.close(); 
 
-
+	return outfileName;
 }

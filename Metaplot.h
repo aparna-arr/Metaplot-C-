@@ -127,6 +127,8 @@ class UserOpts
 	std::string getNameString(void);
 	std::string getNameStringR(void);
 	std::vector<std::string> commonChroms(void);
+
+	bool monteCarlo(void);
 	
 	private:
 	bool validateBeds(void);
@@ -151,11 +153,19 @@ class UserOpts
 
 	std::string splitWigDir;
 	std::string splitBedDir;
+
 	bool wigsSplit;	
 	bool bedsSplit;
 
+	bool isMonteCarlo;
+	int monteCarloReps;
+	
+	bool bedsFromDir;
+	std::string bedDir;
+
 	std::vector<Bed *> * readBedSplit(std::vector<Bed *> * &arOfBedfiles);
 	std::vector<Wig *> readWigSplit(std::vector<Wig *> &wigSplit);
+	void readBedsFromDir(std::vector<std::string> & tmpNamesAndBeds, std::string dir);
 
 	std::stack<std::string> getFilesInDir(std::string dir);
 	
@@ -168,6 +178,14 @@ class UserOpts
 	// add more like debug mode later
 };
 
-void calculateMetaplot(UserOpts input, std::vector<Bed *> * bedByChrs, std::vector<Wig *> wigByChrs, std::vector<std::string> commonChrs, MetaplotRegion * region);
+//bool calculateMetaplot(UserOpts &input, std::vector<Bed *> * &bedByChrs, std::vector<Wig *> &wigByChrs, std::vector<std::string> commonChrs, MetaplotRegion * &region);
+void calculateMetaplot(UserOpts &input, std::vector<Bed *> * &bedByChrs, std::vector<Wig *> &wigByChrs, std::vector<std::string> commonChrs, MetaplotRegion * &region);
+
+void monteCarloMetaplot(std::string file, int bedNum);
+
+
+void debug(MetaplotRegion * &region, int bedNumber, std::string nameStr, std::string nameStrR);
+
+std::string printResults(MetaplotRegion * &region, int bedNumber, std::string nameStr, std::string nameStrR, int maxWindow);
 
 #endif
