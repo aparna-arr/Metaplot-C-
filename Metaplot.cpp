@@ -21,7 +21,6 @@ UserOpts::UserOpts(int argc, char *argv[])
 	wigsSplit = false;
 	bedsSplit = false;
 	isMonteCarlo = false;
-	monteCarloReps = 0;
 	bedsFromDir = false;
 	bedDir = "";
 
@@ -195,6 +194,7 @@ string UserOpts::handleOpts(int argc, char * argv[])
 	// --readSplitWig <DIR>
 	// --readSplitBed <DIR>
 	// --readAllBedsInDir <DIR> // instead of providing list of bedfiles
+	// --monteCarlo
 	string allArgs = "";
 
 	for (int i = 0; i < argc ; i++)
@@ -216,7 +216,7 @@ string UserOpts::handleOpts(int argc, char * argv[])
 	{
 		string opt = sub.substr(pos+2, sub.length());
 	
-		if (opt == "step" || opt == "window" || opt == "preprocessBed" || opt == "monteCarlo")
+		if (opt == "step" || opt == "window" || opt == "preprocessBed")
 		{
 			int num;
 			if (!(args >> num))
@@ -232,10 +232,6 @@ string UserOpts::handleOpts(int argc, char * argv[])
 			else if (opt == "window")
 			{
 				window = num;
-			}
-			else if (opt == "monteCarlo")
-			{
-				monteCarloReps = num;
 			}
 			else 
 			{
@@ -269,9 +265,12 @@ string UserOpts::handleOpts(int argc, char * argv[])
 				bedsFromDir = true;
 			}
 		}
-		else if (opt == "preprocessWig")
+		else if (opt == "preprocessWig" || opt == "monteCarlo")
 		{
-			preprocessWigOpt = true;
+			if (opt == "preprocessWig")
+				preprocessWigOpt = true;
+			else if (opt == "monteCarlo")
+				isMonteCarlo = true;
 		}
 		else
 		{
@@ -441,8 +440,9 @@ void UserOpts::printUsage(void)
 	cout << "\t--preprocessWig : preprocess wig." << endl;
 	cout << "\t--readSplitWig <DIR>" << endl;
 	cout << "\t--readSplitBed <DIR>" << endl;
-	cout << "\t--monteCarlo <INT> : run a signal simulation. All regions to be used MUST be input as beds! FIXME: add ability to read all files from a dir rather than input each bed on cli" << endl;
-}
+	cout << "\t--monteCarlo : run a signal simulation. All regions to be used MUST be input as beds!" << endl;
+	cout << "\t--readAllBedsInDir <DIR> : instead of listing bed files on cli, read from dir. Names = bed file names. Useful with --monteCarlo. Do NOT input <bedfiles> and <bednames> on cli.";
+}	
 
 int UserOpts::getMaxWindow(void)
 {
@@ -1190,38 +1190,53 @@ void monteCarloMetaplot(string file, int bedNum)
 {
  // avg horizontally
  // no need for int reps 	
+	cerr << "DEBUG: in MonteCarloMetaplot" << endl;
 	ifstream infile(file.c_str());
 	ofstream outfile("metaplot_outfile.tmp");	
 
 	outfile << "bp\tsimulation" << endl;
 
 	string line;
+
+	cerr << "DEBUG: before while" << endl;
 	while (getline(infile, line))
 	{
+		// have to deal with NA's
 		double num;
 		stringstream linestream(line);
-		
+
+		cerr << "linestream is " << linestream.str() << endl;		
+
 		if (!(linestream >> num))
 			continue; // like next?
 		
 		// num == bp# right now
-		int bp = num;
+		double bp = num;
 		double avg = 0;
+		string NA;
 
+// want to treat NAs like 0s
 		for (int i = 0; i < bedNum; i++)
 		{
-			linestream >> num;
-			avg += num;
+			linestream >> NA;
+			stringstream toNum(NA);
+
+			if ((toNum >> num))
+				avg += num;
 		} 
 
-		avg /= bedNum;
+		avg /= (double)bedNum;
 		
 		outfile << bp << "\t" << avg << endl;
 	}
+	cerr << "DEBUG: after while" << endl;
 	
 	outfile.close();
 	infile.close();
+	rename("metaplot_outfile.txt", "tmp");
 	rename("metaplot_outfile.tmp", "metaplot_outfile.txt");
+	rename("tmp", "metaplot_outfile.tmp");
+	cerr << "DEBUG: end of function" << endl;
 }
 
 
@@ -1234,7 +1249,6 @@ void debug(MetaplotRegion * &region, int bedNumber, string nameStr, string nameS
 string printResults(MetaplotRegion * &region, int bedNumber, string nameStr, string nameStrR, int maxWindow)
 {
 //	debug();
-	cerr << "in printResults" << endl;
 	cout << endl << "Printing out results" << endl;
 
 	string outfileName = "metaplot_outfile.txt";

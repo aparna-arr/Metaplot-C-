@@ -158,7 +158,6 @@ class UserOpts
 	bool bedsSplit;
 
 	bool isMonteCarlo;
-	int monteCarloReps;
 	
 	bool bedsFromDir;
 	std::string bedDir;

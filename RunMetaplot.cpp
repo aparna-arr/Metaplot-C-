@@ -44,8 +44,13 @@ int main(int argc, char * argv[])
 		{
 			// for some reason control ends up in HERE ...
 //			cerr << "DEBUG in MonteCarlo" << endl;
+			cout << endl << "Monte Carlo Metaplot" << endl;
 			calculateMetaplot(input, bedByChrs, wigByChrs, commonChrs, region);
-			string outfile = printResults(region, input.getBedNumber(), input.getNameString(), input.getNameStringR(), input.getMaxWindow()); 
+		
+			string namestr = input.getNameString();
+			string namestrR = input.getNameStringR();
+			
+			string outfile = printResults(region, input.getBedNumber(), namestr, namestrR, input.getMaxWindow()); 
 			monteCarloMetaplot(outfile, input.getBedNumber());
 		}
 
