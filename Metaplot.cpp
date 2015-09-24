@@ -1190,7 +1190,7 @@ void monteCarloMetaplot(string file, int bedNum)
 {
  // avg horizontally
  // no need for int reps 	
-	cerr << "DEBUG: in MonteCarloMetaplot" << endl;
+//	cerr << "DEBUG: in MonteCarloMetaplot" << endl;
 	ifstream infile(file.c_str());
 	ofstream outfile("metaplot_outfile.tmp");	
 
@@ -1198,14 +1198,14 @@ void monteCarloMetaplot(string file, int bedNum)
 
 	string line;
 
-	cerr << "DEBUG: before while" << endl;
+//	cerr << "DEBUG: before while" << endl;
 	while (getline(infile, line))
 	{
 		// have to deal with NA's
 		double num;
 		stringstream linestream(line);
 
-		cerr << "linestream is " << linestream.str() << endl;		
+//		cerr << "linestream is " << linestream.str() << endl;		
 
 		if (!(linestream >> num))
 			continue; // like next?
@@ -1229,14 +1229,14 @@ void monteCarloMetaplot(string file, int bedNum)
 		
 		outfile << bp << "\t" << avg << endl;
 	}
-	cerr << "DEBUG: after while" << endl;
+//	cerr << "DEBUG: after while" << endl;
 	
 	outfile.close();
 	infile.close();
 	rename("metaplot_outfile.txt", "tmp");
 	rename("metaplot_outfile.tmp", "metaplot_outfile.txt");
 	rename("tmp", "metaplot_outfile.tmp");
-	cerr << "DEBUG: end of function" << endl;
+//	cerr << "DEBUG: end of function" << endl;
 }
 
 
